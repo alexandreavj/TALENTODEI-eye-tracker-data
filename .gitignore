@@ -1,0 +1,13 @@
+build*
+*.pro.user
+.settings
+.classpath
+.project
+target
+*.iml
+.idea
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+*.o
