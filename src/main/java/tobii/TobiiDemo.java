@@ -41,7 +41,7 @@ public class TobiiDemo {
                     String message = "(" + xPosition + ", " + yPosition + ")";
                     System.out.println(message);
 
-                    writeToFile(file_name, message + " " + System.currentTimeMillis() + "\n");
+                    writeToFile(file_name, xPosition + " " + yPosition + "\n" + System.currentTimeMillis() + "\n");
 
                     nextTime += period;
                 }
