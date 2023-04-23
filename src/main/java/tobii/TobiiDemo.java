@@ -50,23 +50,24 @@ class WriteGazeDataToFile implements Runnable {
         this.file_name = file_name;
     }
     public void run() {
-        long last = System.currentTimeMillis();
+        long last_nanos = System.nanoTime();
         while (!Thread.currentThread().isInterrupted()) {
-            if (System.currentTimeMillis() - last > 4) {
-                float[] position = Tobii.gazePosition();
+            float[] position = Tobii.gazePosition();
+            long aux = System.nanoTime();
+            long timestamp = System.currentTimeMillis();
 
-                float xRatio = position[0];
-                float yRatio = position[1];
+            float xRatio = position[0];
+            float yRatio = position[1];
 
-                int xPosition = (int) (xRatio * screenWidth);
-                int yPosition = (int) (yRatio * screenHeight);
+            int xPosition = (int) (xRatio * screenWidth);
+            int yPosition = (int) (yRatio * screenHeight);
 
-                String message = "(" + xPosition + ", " + yPosition + ")";
-                System.out.println(message);
+            String message = "(" + xPosition + ", " + yPosition + ")";
+            System.out.println(message);
 
-                writeToFile(file_name, xPosition + "\n" + yPosition + "\n" + System.currentTimeMillis() + "\n");
-
-                last = System.currentTimeMillis();
+            if (aux - last_nanos >= 8333333) {
+                writeToFile(file_name, xPosition + "\n" + yPosition + "\n" + timestamp + "\n");
+                last_nanos = aux;
             }
         }
     }
