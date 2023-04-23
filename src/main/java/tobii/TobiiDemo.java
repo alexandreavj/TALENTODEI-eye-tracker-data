@@ -64,7 +64,7 @@ class WriteGazeDataToFile implements Runnable {
                 String message = "(" + xPosition + ", " + yPosition + ")";
                 System.out.println(message);
 
-                writeToFile(file_name, xPosition + " " + yPosition + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-SSS")) + "\n");
+                writeToFile(file_name, xPosition + "\n" + yPosition + "\n" + System.currentTimeMillis() + "\n");
 
                 last = System.currentTimeMillis();
             }
