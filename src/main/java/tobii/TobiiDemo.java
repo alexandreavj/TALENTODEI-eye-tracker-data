@@ -10,12 +10,70 @@ import java.net.Socket;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+
+import static tobii.TobiiDemo.writeToFile;
+
+class ListeningToSocketThread implements Runnable {
+    private final Socket socket;
+    private final Thread otherThread;
+
+    public ListeningToSocketThread(Socket socket, Thread otherThread) {
+        this.socket = socket;
+        this.otherThread = otherThread;
+    }
+    public void run() {
+        String message = null;
+        try {
+            InputStream input = socket.getInputStream();
+            byte[] buffer = new byte[1024];
+            int length = input.read(buffer);
+            message = new String(buffer, 0, length);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        if (Objects.equals(message, "STOP")) {
+            System.out.println(message);
+            otherThread.interrupt();
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+class WriteGazeDataToFile implements Runnable {
+    private final double screenWidth, screenHeight;
+    private final String file_name;
+
+    public WriteGazeDataToFile(double screenWidth, double screenHeight, String file_name) {
+        this.screenWidth = screenWidth;
+        this.screenHeight = screenHeight;
+        this.file_name = file_name;
+    }
+    public void run() {
+        long last = System.currentTimeMillis();
+        while (!Thread.currentThread().isInterrupted()) {
+            if (System.currentTimeMillis() - last > 4) {
+                float[] position = Tobii.gazePosition();
+
+                float xRatio = position[0];
+                float yRatio = position[1];
+
+                int xPosition = (int) (xRatio * screenWidth);
+                int yPosition = (int) (yRatio * screenHeight);
+
+                String message = "(" + xPosition + ", " + yPosition + ")";
+                System.out.println(message);
+
+                writeToFile(file_name, xPosition + " " + yPosition + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-SSS")) + "\n");
+
+                last = System.currentTimeMillis();
+            }
+        }
+    }
+}
 
 public class TobiiDemo {
-    static String file_name = "C:\\Users\\Alexandre\\Documents\\SOURCE-CODE\\data\\GAZE-DATA-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-SSS")) + ".txt";
+    static String file_name_base = "C:\\Users\\Alexandre\\Documents\\SOURCE-CODE\\data\\GAZE-DATA-";
     static int PORT = 1234;
 
     public static void main(String[] args) throws Exception {
@@ -32,33 +90,16 @@ public class TobiiDemo {
             Socket socket = serverSocket.accept();
             String inputFromPython = getMessageFromSocket(socket);
             if (Objects.equals(inputFromPython, "WRITE")) {
+                String file_name = file_name_base + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-SSS")) + ".txt";
                 createNewFile(file_name);
 
-                ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-                long period = 1000000000L / 120; // period in nanoseconds
-                scheduler.scheduleAtFixedRate(new Runnable() {
-                    private long nextTime = System.nanoTime();
+                WriteGazeDataToFile WriteGazeData = new WriteGazeDataToFile(screenWidth, screenHeight, file_name);
+                Thread WriteGazeDataThread = new Thread(WriteGazeData);
+                ListeningToSocketThread ListeningToSocket = new ListeningToSocketThread(socket, WriteGazeDataThread);
+                Thread ListeningToSocketThread = new Thread(ListeningToSocket);
 
-                    public void run() {
-                        long currentTime = System.nanoTime();
-                        while (nextTime < currentTime) {
-                            float[] position = Tobii.gazePosition();
-
-                            float xRatio = position[0];
-                            float yRatio = position[1];
-
-                            int xPosition = (int) (xRatio * screenWidth);
-                            int yPosition = (int) (yRatio * screenHeight);
-
-                            String message = "(" + xPosition + ", " + yPosition + ")";
-                            System.out.println(message);
-
-                            writeToFile(file_name, xPosition + " " + yPosition + "\n" + System.currentTimeMillis() + "\n");
-
-                            nextTime += period;
-                        }
-                    }
-                }, 0, period, TimeUnit.NANOSECONDS);
+                ListeningToSocketThread.start();
+                WriteGazeDataThread.start();
             }
         }
     }
