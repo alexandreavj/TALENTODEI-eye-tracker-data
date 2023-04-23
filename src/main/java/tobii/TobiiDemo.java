@@ -4,16 +4,23 @@ import java.awt.*;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class TobiiDemo {
-    static String file_name = "GAZE-DATA-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-SSS")) + ".txt";
+    static String file_name = "C:\\Users\\Alexandre\\Documents\\SOURCE-CODE\\data\\GAZE-DATA-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-SSS")) + ".txt";
+    static int PORT = 1234;
 
     public static void main(String[] args) throws Exception {
+
+        ServerSocket serverSocket = new ServerSocket(PORT);
 
         Toolkit defaultToolkit = Toolkit.getDefaultToolkit();
         Dimension screenSize = defaultToolkit.getScreenSize();
@@ -21,32 +28,39 @@ public class TobiiDemo {
         double screenHeight = screenSize.getHeight();
         System.out.println("screenWidth = " + screenWidth + ", screenHeight = " + screenHeight);
 
-        createNewFile(file_name);
+        while (true) {
+            Socket socket = serverSocket.accept();
+            String inputFromPython = getMessageFromSocket(socket);
+            if (Objects.equals(inputFromPython, "WRITE")) {
+                createNewFile(file_name);
 
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        long period = 1000000000L / 120; // period in nanoseconds
-        scheduler.scheduleAtFixedRate(new Runnable() {
-            private long nextTime = System.nanoTime();
-            public void run() {
-                long currentTime = System.nanoTime();
-                while (nextTime < currentTime) {
-                    float[] position = Tobii.gazePosition();
+                ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+                long period = 1000000000L / 120; // period in nanoseconds
+                scheduler.scheduleAtFixedRate(new Runnable() {
+                    private long nextTime = System.nanoTime();
 
-                    float xRatio = position[0];
-                    float yRatio = position[1];
+                    public void run() {
+                        long currentTime = System.nanoTime();
+                        while (nextTime < currentTime) {
+                            float[] position = Tobii.gazePosition();
 
-                    int xPosition = (int) (xRatio * screenWidth);
-                    int yPosition = (int) (yRatio * screenHeight);
+                            float xRatio = position[0];
+                            float yRatio = position[1];
 
-                    String message = "(" + xPosition + ", " + yPosition + ")";
-                    System.out.println(message);
+                            int xPosition = (int) (xRatio * screenWidth);
+                            int yPosition = (int) (yRatio * screenHeight);
 
-                    writeToFile(file_name, xPosition + " " + yPosition + "\n" + System.currentTimeMillis() + "\n");
+                            String message = "(" + xPosition + ", " + yPosition + ")";
+                            System.out.println(message);
 
-                    nextTime += period;
-                }
+                            writeToFile(file_name, xPosition + " " + yPosition + "\n" + System.currentTimeMillis() + "\n");
+
+                            nextTime += period;
+                        }
+                    }
+                }, 0, period, TimeUnit.NANOSECONDS);
             }
-        }, 0, period, TimeUnit.NANOSECONDS);
+        }
     }
 
 
@@ -71,5 +85,18 @@ public class TobiiDemo {
         } catch (IOException e) {
             System.out.println("An error occurred while writing to the file: " + e.getMessage());
         }
+    }
+
+    public static String getMessageFromSocket(Socket socket) {
+        String message = null;
+        try {
+            InputStream input = socket.getInputStream();
+            byte[] buffer = new byte[1024];
+            int length = input.read(buffer);
+            message = new String(buffer, 0, length);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return message;
     }
 }
